@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: gauss-fileprocessor-networkinbound
+  datasource:
+    driverClassName: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/postgres?currentSchema=cs6400
+    username: postgres
+    password: password
+management:
+  endpoints:
+    web:
+      base-path: /manage
+  endpoint:
+    health:
+      show-details: always
