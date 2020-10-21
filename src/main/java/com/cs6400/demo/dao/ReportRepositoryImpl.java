@@ -90,8 +90,10 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
         PreparedStatement ps = getConnection().prepareCall(sql);
         ps.setString(1, name);
         ResultSet rs = ps.executeQuery();
-        rs.next();
-        int i = rs.getInt(1);
-        return i;
+        if(rs.next()) {
+            int i = rs.getInt(1);
+            return i;
+        }
+        return 0;
     }
 }
