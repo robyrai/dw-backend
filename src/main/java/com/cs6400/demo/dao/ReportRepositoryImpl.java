@@ -2,39 +2,41 @@ package com.cs6400.demo.dao;
 
 import com.cs6400.demo.model.CategoryReport;
 import com.cs6400.demo.model.CityMembershipTrend;
-import com.cs6400.demo.model.YearMembershipTrend;
 import com.cs6400.demo.model.ManufacturerDetail;
 import com.cs6400.demo.model.ManufacturerProduct;
 import com.cs6400.demo.model.MembershipTrend;
+import com.cs6400.demo.model.RevenuePopulation;
+import com.cs6400.demo.model.YearMembershipTrend;
 import java.math.BigDecimal;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import javax.annotation.PostConstruct;
-import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.support.JdbcDaoSupport;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportRepository {
-  @Autowired
-  DataSource dataSource;
+public class ReportRepositoryImpl implements ReportRepository {
 
-  @PostConstruct
-  private void initialize() {
-    setDataSource(dataSource);
-  }
+  @Autowired
+  @Qualifier("ppdw-jdbc-template")
+  JdbcTemplate ppJdbcTemplate;
+
+  @Autowired
+  @Qualifier("ppdw-connection")
+  Connection ppConnxn;
 
   @Override
   public List<ManufacturerProduct> getManufacturerProduct() throws SQLException {
     String sql = "SELECT m.name, COUNT(p.name), ROUND(avg(p.price), 2) AS average_price, MAX "
                  + "(p.price),  MIN(p.price) FROM product p JOIN manufacturer m ON "
                  + "p.mfg_name=m.name GROUP BY m.name ORDER BY average_price DESC LIMIT 100;";
-    List<Map<String, Object>> rows = getJdbcTemplate().queryForList(sql);
+    List<Map<String, Object>> rows = ppJdbcTemplate.queryForList(sql);
     List<ManufacturerProduct> result = new ArrayList<>();
     for (Map<String, Object> row : rows) {
       ManufacturerProduct mp = new ManufacturerProduct();
@@ -45,7 +47,6 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
       mp.setMinPrice((Integer) row.get("min"));
       result.add(mp);
     }
-    getConnection().close();
     return result;
   }
 
@@ -55,7 +56,7 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
                  + " p.mfg_name) unique_mfg, ROUND(avg(p.price), 2) average_price FROM "
                  + "product p JOIN product_category_xref x ON p.productid = x.productid JOIN "
                  + "category c ON x.category_name = c.name GROUP BY c.name ORDER BY c.name ASC";
-    List<Map<String, Object>> rows = getJdbcTemplate().queryForList(sql);
+    List<Map<String, Object>> rows = ppJdbcTemplate.queryForList(sql);
     List<CategoryReport> result = new ArrayList<>();
     for (Map<String, Object> row : rows) {
       CategoryReport cr = new CategoryReport();
@@ -65,7 +66,6 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
       cr.setAvgPrice((BigDecimal) row.get("average_price"));
       result.add(cr);
     }
-    getConnection().close();
     return result;
   }
 
@@ -76,7 +76,7 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
                  + "p.productid = x.productid JOIN category c ON c.name = x.category_name "
                  + "JOIN manufacturer m ON m.name = p.mfg_name WHERE m.name = '" + name + "' "
                  + "GROUP BY p.productid ORDER BY p.price DESC;";
-    List<Map<String, Object>> rows = getJdbcTemplate().queryForList(sql);
+    List<Map<String, Object>> rows = ppJdbcTemplate.queryForList(sql);
     List<ManufacturerDetail> result = new ArrayList<>();
     for (Map<String, Object> row : rows) {
       ManufacturerDetail md = new ManufacturerDetail();
@@ -86,7 +86,6 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
       md.setPrice((Integer) row.get("price"));
       result.add(md);
     }
-    getConnection().close();
     return result;
   }
 
@@ -96,7 +95,7 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
     int res = 0;
     ResultSet rs;
     try {
-      PreparedStatement ps = getConnection().prepareCall(sql);
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
       ps.setString(1, name);
       rs = ps.executeQuery();
       if (rs.next()) {
@@ -106,27 +105,79 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
       return res;
     } catch (SQLException e) {
       return 0;
-    } finally {
-      try {
-        getConnection().close();
-      } catch (SQLException e) {
-        e.printStackTrace();
+    }
+  }
+  
+  @Override
+  public List<RevenuePopulation> getRevenueByPopulation() {
+    String sql = "SELECT t.category, t.txn_year, t.revenue FROM (SELECT CASE WHEN c.population > " 
+                 + "700000 THEN 'maximus' WHEN c.population > 500000 THEN 'medium' WHEN c.population > 300000 THEN 'minimum' ELSE 'itsybitsy' END as category, CASE WHEN c.population > 700000 THEN 3 WHEN c.population > 500000 THEN 2 WHEN c.population > 300000 THEN 1 ELSE 0 END as rnk, EXTRACT(YEAR FROM d.date) AS txn_year, round(SUM(d.price)/COUNT(DISTINCT(c.name)), 2) AS revenue FROM sold d JOIN store s ON s.storeid=d.storeid JOIN city c ON c.storeid=s.storeid GROUP BY category, txn_year, rnk ORDER BY txn_year ASC, rnk ASC) as t;";
+    List<RevenuePopulation> rpList = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        RevenuePopulation rp = new RevenuePopulation();
+        rp.setPopulationCategory(rs.getString("category"));
+        rp.setTxnYear(rs.getDouble("txn_year"));
+        rp.setRevenue(rs.getLong("revenue"));
+        rpList.add(rp);
       }
+      rs.close();
+      return rpList;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
+  @Override
+  public List<Integer> getRevenueYears() {
+    String sql = "SELECT DISTINCT(EXTRACT(YEAR FROM date)) FROM sold;";
+    List<Integer> years = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        Integer yr = rs.getInt(1);
+        years.add(yr);
+      }
+      rs.close();
+      return years;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
+  @Override
+  public List<Integer> getRevenueMonths() {
+    String sql = "SELECT DISTINCT(EXTRACT(MONTH FROM date)) FROM sold;";
+    List<Integer> months = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        Integer mt = rs.getInt(1);
+        months.add(mt);
+      }
+      rs.close();
+      return months;
+    } catch (SQLException e) {
+      return null;
     }
   }
 
   @Override
   public List<MembershipTrend> getMembershipTrend() {
-    String sql = "SELECT city, state, signup_year, total, CASE WHEN count > 1 THEN true ELSE " 
-                 + "false END " 
-                 + "AS isMultiple FROM (SELECT c.name AS city, EXTRACT(YEAR FROM m.signup_date) " 
-                 + "AS signup_year,  COUNT(m.signup_date) AS total FROM membership m JOIN store s" 
-                 + " ON s.storeid= m.signup_store JOIN city c ON c.storeid=s.storeid GROUP BY " 
-                 + "city, signup_year ORDER BY signup_year DESC) t JOIN (select name, state, count" 
+    String sql = "SELECT city, state, signup_year, total, CASE WHEN count > 1 THEN true ELSE "
+                 + "false END "
+                 + "AS isMultiple FROM (SELECT c.name AS city, EXTRACT(YEAR FROM m.signup_date) "
+                 + "AS signup_year,  COUNT(m.signup_date) AS total FROM membership m JOIN store s"
+                 + " ON s.storeid= m.signup_store JOIN city c ON c.storeid=s.storeid GROUP BY "
+                 + "city, signup_year ORDER BY signup_year DESC) t JOIN (select name, state, count"
                  + "(storeid) from city group by name, state) u ON t.city=u.name;";
     List<MembershipTrend> mtList = new ArrayList<>();
     try {
-      PreparedStatement ps = getConnection().prepareCall(sql);
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
       ResultSet rs = ps.executeQuery();
       while (rs.next()) {
         MembershipTrend mt = new MembershipTrend();
@@ -141,12 +192,6 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
       return mtList;
     } catch (SQLException e) {
       return null;
-    } finally {
-      try {
-        getConnection().close();
-      } catch (SQLException e) {
-        e.printStackTrace();
-      }
     }
   }
 
@@ -160,7 +205,7 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
 
     List<YearMembershipTrend> ymList = new ArrayList<>();
     try {
-      PreparedStatement ps = getConnection().prepareCall(sql);
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
       ps.setLong(1, year);
       ResultSet rs = ps.executeQuery();
       while (rs.next()) {
@@ -175,12 +220,6 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
       return ymList;
     } catch (SQLException e) {
       return null;
-    } finally {
-      try {
-        getConnection().close();
-      } catch (SQLException e) {
-        e.printStackTrace();
-      }
     }
   }
 
@@ -190,7 +229,7 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
 
     List<CityMembershipTrend> cmList = new ArrayList<>();
     try {
-      PreparedStatement ps = getConnection().prepareCall(sql);
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
       ps.setString(1, city);
       ps.setString(2, state);
       ps.setLong(3, year);
@@ -207,12 +246,6 @@ public class ReportRepositoryImpl extends JdbcDaoSupport implements ReportReposi
       return cmList;
     } catch (SQLException e) {
       return null;
-    } finally {
-      try {
-        getConnection().close();
-      } catch (SQLException e) {
-        e.printStackTrace();
-      }
     }
   }
 }

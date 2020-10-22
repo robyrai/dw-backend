@@ -2,7 +2,7 @@ package com.cs6400.demo.model;
 
 public class Store {
   private int storeId;
-  private String adddress;
+  private String address;
   private int phoneNumber;
 
 
@@ -14,12 +14,12 @@ public class Store {
     this.storeId = storeId;
   }
 
-  public String getAdddress() {
-    return adddress;
+  public String getAddress() {
+    return address;
   }
 
-  public void setAdddress(String adddress) {
-    this.adddress = adddress;
+  public void setAddress(String address) {
+    this.address = address;
   }
 
   public int getPhoneNumber() {

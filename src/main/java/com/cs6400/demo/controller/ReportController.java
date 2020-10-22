@@ -3,6 +3,7 @@ package com.cs6400.demo.controller;
 import com.cs6400.demo.dao.ReportRepository;
 import com.cs6400.demo.model.CategoryReport;
 import com.cs6400.demo.model.CityMembershipTrend;
+import com.cs6400.demo.model.RevenuePopulation;
 import com.cs6400.demo.model.YearMembershipTrend;
 import com.cs6400.demo.model.ManufacturerDetail;
 import com.cs6400.demo.model.ManufacturerProduct;
@@ -42,6 +43,22 @@ public class ReportController {
   @GetMapping("/mfgMaxDiscount/{name}")
   public int getMfgDiscount(@PathVariable String name) throws SQLException {
     return repo.getMfgDiscount(name);
+  }
+
+  @GetMapping("/revenueYears")
+  public List<Integer> getRevenueYears() {
+    return repo.getRevenueYears();
+  }
+
+  @GetMapping("/revenueMonths")
+  public List<Integer> getRevenueMonths() {
+    return repo.getRevenueMonths();
+  }
+  
+  
+  @GetMapping("/revenueByPopulation")
+  public List<RevenuePopulation> getRevenueByPopulation() {
+    return repo.getRevenueByPopulation();
   }
 
   @GetMapping("/membershipTrend")

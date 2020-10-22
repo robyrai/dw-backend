@@ -2,6 +2,7 @@ package com.cs6400.demo.dao;
 
 import com.cs6400.demo.model.CategoryReport;
 import com.cs6400.demo.model.CityMembershipTrend;
+import com.cs6400.demo.model.RevenuePopulation;
 import com.cs6400.demo.model.YearMembershipTrend;
 import com.cs6400.demo.model.ManufacturerDetail;
 import com.cs6400.demo.model.ManufacturerProduct;
@@ -23,4 +24,10 @@ public interface ReportRepository {
   List<YearMembershipTrend> getYearMembershipTrend(long year);
 
   List<CityMembershipTrend> getCityMembershipTrend(String city, String state, long year);
+
+  List<RevenuePopulation> getRevenueByPopulation();
+
+  List<Integer> getRevenueYears();
+
+  List<Integer> getRevenueMonths();
 }
