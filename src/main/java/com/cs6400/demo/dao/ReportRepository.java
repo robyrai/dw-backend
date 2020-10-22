@@ -1,18 +1,26 @@
 package com.cs6400.demo.dao;
 
 import com.cs6400.demo.model.CategoryReport;
+import com.cs6400.demo.model.CityMembershipTrend;
+import com.cs6400.demo.model.YearMembershipTrend;
 import com.cs6400.demo.model.ManufacturerDetail;
 import com.cs6400.demo.model.ManufacturerProduct;
-
+import com.cs6400.demo.model.MembershipTrend;
 import java.sql.SQLException;
 import java.util.List;
 
 public interface ReportRepository {
-    List<ManufacturerProduct> getManufacturerProduct();
+  List<ManufacturerProduct> getManufacturerProduct() throws SQLException;
 
-    List<CategoryReport> getCategoryReport();
-    
-    List<ManufacturerDetail> getManufacturerDetail(String name);
+  List<CategoryReport> getCategoryReport() throws SQLException;
 
-    int getMfgDiscount(String name) throws SQLException;
+  List<ManufacturerDetail> getManufacturerDetail(String name) throws SQLException;
+
+  int getMfgDiscount(String name) throws SQLException;
+
+  List<MembershipTrend> getMembershipTrend();
+
+  List<YearMembershipTrend> getYearMembershipTrend(long year);
+
+  List<CityMembershipTrend> getCityMembershipTrend(String city, String state, long year);
 }
