@@ -2,11 +2,13 @@ package com.cs6400.demo.dao;
 
 import com.cs6400.demo.model.CategoryReport;
 import com.cs6400.demo.model.CityMembershipTrend;
+import com.cs6400.demo.model.GroundhogDayReport;
 import com.cs6400.demo.model.HighestVolumeCateogry;
 import com.cs6400.demo.model.ManufacturerDetail;
 import com.cs6400.demo.model.ManufacturerProduct;
 import com.cs6400.demo.model.MembershipTrend;
 import com.cs6400.demo.model.RevenuePopulation;
+import com.cs6400.demo.model.StoreRevenueByStateByYear;
 import com.cs6400.demo.model.YearMembershipTrend;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -168,6 +170,24 @@ public class ReportRepositoryImpl implements ReportRepository {
   }
 
   @Override
+  public List<String> getStates() {
+    String sql = "SELECT DISTINCT(state) FROM city;";
+    List<String> states = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        String state = rs.getString(1);
+        states.add(state);
+      }
+      rs.close();
+      return states;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
+  @Override
   public List<HighestVolumeCateogry> getHighestVolumeCategory(String year, String month) {
     String sql = "WITH tempTable(city_name, state_name, total)" 
                  + "AS (SELECT ct.name, c.state, SUM(s.quantity) AS total " 
@@ -198,6 +218,72 @@ public class ReportRepositoryImpl implements ReportRepository {
       }
       rs.close();
       return hvList;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
+  @Override
+  public List<GroundhogDayReport> getGroundhogDayReport() {
+    String sql = "SELECT extract(year FROM s.date) AS sale_year, SUM(s.quantity) AS annual_sale, " 
+                 + "round(cast(SUM(quantity) AS decimal(7,2))/.365, 2) AS sales_per_day, "
+                 + "SUM(case when to_char(s.date, 'MMdd')='1101' then s.quantity else 0 end) AS " 
+                 + "groundhog_day_sale "
+                 + "FROM sold s "
+                 + "JOIN product p ON s.productid=p.productid "
+                 + "JOIN product_category_xref x ON p.productid=x.productid "
+                 + "JOIN category c ON x.category_name=c.name "
+                 + "WHERE c.name='office' "
+                 + "GROUP BY sale_year "
+                 + "ORDER BY sale_year ASC;";
+
+    List<GroundhogDayReport> gdList = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        GroundhogDayReport gd = new GroundhogDayReport();
+        gd.setYear(rs.getLong("sale_year"));
+        gd.setAnnualSale(rs.getLong("annual_sale"));
+        gd.setDailyAverage(rs.getLong("sales_per_day"));
+        gd.setGhdTotal(rs.getLong("groundhog_day_sale"));
+        gdList.add(gd);
+      }
+      rs.close();
+      return gdList;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
+  @Override
+  public List<StoreRevenueByStateByYear> getStoreRevenueByStoreByYear(String stateName) {
+    String sql = "SELECT s.storeid, s.address AS store_address, c.name AS city_name, (EXTRACT" 
+                 + "(YEAR FROM d.date)) AS revenue_year, SUM(d.price) AS revenue "
+                 + "FROM store s "
+                 + "JOIN city c ON s.storeid=c.storeid "
+                 + "JOIN product_store_xref x ON s.storeid=x.storeid "
+                 + "JOIN product p ON x.productid=p.productid "
+                 + "JOIN sold d ON p.productid=d.productid "
+                 + "where c.state=? "
+                 + "GROUP BY s.storeid, s.address, c.name, revenue_year "
+                 + "ORDER BY revenue_year ASC, revenue DESC;";
+    List<StoreRevenueByStateByYear> srList = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ps.setString(1, stateName);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        StoreRevenueByStateByYear sr = new StoreRevenueByStateByYear();
+        sr.setStoreId(rs.getInt("storeid"));
+        sr.setAddress(rs.getString("store_address"));
+        sr.setCity(rs.getString("city_name"));
+        sr.setYear(rs.getLong("revenue_year"));
+        sr.setRevenue(rs.getLong("revenue"));
+        srList.add(sr);
+      }
+      rs.close();
+      return srList;
     } catch (SQLException e) {
       return null;
     }

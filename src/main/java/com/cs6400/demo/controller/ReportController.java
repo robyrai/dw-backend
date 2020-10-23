@@ -3,8 +3,10 @@ package com.cs6400.demo.controller;
 import com.cs6400.demo.dao.ReportRepository;
 import com.cs6400.demo.model.CategoryReport;
 import com.cs6400.demo.model.CityMembershipTrend;
+import com.cs6400.demo.model.GroundhogDayReport;
 import com.cs6400.demo.model.HighestVolumeCateogry;
 import com.cs6400.demo.model.RevenuePopulation;
+import com.cs6400.demo.model.StoreRevenueByStateByYear;
 import com.cs6400.demo.model.YearMembershipTrend;
 import com.cs6400.demo.model.ManufacturerDetail;
 import com.cs6400.demo.model.ManufacturerProduct;
@@ -47,6 +49,21 @@ public class ReportController {
     return repo.getMfgDiscount(name);
   }
 
+  @GetMapping(value =  "/states")
+  public List<String> getStates() {
+    return repo.getStates();
+  }
+  
+  @GetMapping(value =  "/storeRevenueByYearByStore")
+  public List<StoreRevenueByStateByYear> getStoreRevenueByYearByState(@RequestParam String stateName) {
+    return repo.getStoreRevenueByStoreByYear(stateName);
+  }
+
+  @GetMapping(value =  "/groundhogDaySales")
+  public List<GroundhogDayReport> getGroundhogDaySales() {
+    return repo.getGroundhogDayReport();
+  }
+
   @GetMapping(value =  "/revenueYears")
   public List<Integer> getRevenueYears() {
     return repo.getRevenueYears();
@@ -62,7 +79,6 @@ public class ReportController {
                                                               @RequestParam String month) {
     return repo.getHighestVolumeCategory(year, month);
   }
-  
   
   @GetMapping("/revenueByPopulation")
   public List<RevenuePopulation> getRevenueByPopulation() {

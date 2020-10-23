@@ -2,8 +2,10 @@ package com.cs6400.demo.dao;
 
 import com.cs6400.demo.model.CategoryReport;
 import com.cs6400.demo.model.CityMembershipTrend;
+import com.cs6400.demo.model.GroundhogDayReport;
 import com.cs6400.demo.model.HighestVolumeCateogry;
 import com.cs6400.demo.model.RevenuePopulation;
+import com.cs6400.demo.model.StoreRevenueByStateByYear;
 import com.cs6400.demo.model.YearMembershipTrend;
 import com.cs6400.demo.model.ManufacturerDetail;
 import com.cs6400.demo.model.ManufacturerProduct;
@@ -32,5 +34,11 @@ public interface ReportRepository {
 
   List<Integer> getRevenueMonths();
 
+  List<String> getStates();
+
   List<HighestVolumeCateogry> getHighestVolumeCategory(String year, String month);
+  
+  List<GroundhogDayReport> getGroundhogDayReport();
+  
+  List<StoreRevenueByStateByYear> getStoreRevenueByStoreByYear(String stateName);
 }
