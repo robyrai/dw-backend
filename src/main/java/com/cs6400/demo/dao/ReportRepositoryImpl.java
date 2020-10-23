@@ -2,6 +2,7 @@ package com.cs6400.demo.dao;
 
 import com.cs6400.demo.model.CategoryReport;
 import com.cs6400.demo.model.CityMembershipTrend;
+import com.cs6400.demo.model.HighestVolumeCateogry;
 import com.cs6400.demo.model.ManufacturerDetail;
 import com.cs6400.demo.model.ManufacturerProduct;
 import com.cs6400.demo.model.MembershipTrend;
@@ -161,6 +162,42 @@ public class ReportRepositoryImpl implements ReportRepository {
       }
       rs.close();
       return months;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
+  @Override
+  public List<HighestVolumeCateogry> getHighestVolumeCategory(String year, String month) {
+    String sql = "WITH tempTable(city_name, state_name, total)" 
+                 + "AS (SELECT ct.name, c.state, SUM(s.quantity) AS total " 
+                 + "FROM sold s JOIN product p ON p.productid=s.productid " 
+                 + "JOIN product_store_xref x ON x.productid = p.productid " 
+                 + "JOIN store st ON st.storeid = x.storeid " 
+                 + "JOIN city c on c.storeid = st.storeid " 
+                 + "JOIN product_category_xref pcx on pcx.productid = p.productid " 
+                 + "JOIN category ct ON ct.name=pcx.category_name " 
+                 + "WHERE TO_CHAR(s.date, 'MM') = ? AND TO_CHAR(s.date, 'YYYY') = ? " 
+                 + "GROUP BY ct.name, c.state) " 
+                 + "SELECT city_name, state_name, total FROM tempTable " 
+                 + "WHERE (city_name, total) IN " 
+                 + "(SELECT city_name, MAX(total) FROM tempTable GROUP BY city_name)";
+
+    List<HighestVolumeCateogry> hvList = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ps.setString(1, month);
+      ps.setString(2, year);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        HighestVolumeCateogry hv = new HighestVolumeCateogry();
+        hv.setCityName(rs.getString("city_name"));
+        hv.setStateName(rs.getString("state_name"));
+        hv.setTotal(rs.getLong("total"));
+        hvList.add(hv);
+      }
+      rs.close();
+      return hvList;
     } catch (SQLException e) {
       return null;
     }

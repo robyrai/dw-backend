@@ -2,6 +2,7 @@ package com.cs6400.demo.dao;
 
 import com.cs6400.demo.model.CategoryReport;
 import com.cs6400.demo.model.CityMembershipTrend;
+import com.cs6400.demo.model.HighestVolumeCateogry;
 import com.cs6400.demo.model.RevenuePopulation;
 import com.cs6400.demo.model.YearMembershipTrend;
 import com.cs6400.demo.model.ManufacturerDetail;
@@ -30,4 +31,6 @@ public interface ReportRepository {
   List<Integer> getRevenueYears();
 
   List<Integer> getRevenueMonths();
+
+  List<HighestVolumeCateogry> getHighestVolumeCategory(String year, String month);
 }

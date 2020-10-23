@@ -3,6 +3,7 @@ package com.cs6400.demo.controller;
 import com.cs6400.demo.dao.ReportRepository;
 import com.cs6400.demo.model.CategoryReport;
 import com.cs6400.demo.model.CityMembershipTrend;
+import com.cs6400.demo.model.HighestVolumeCateogry;
 import com.cs6400.demo.model.RevenuePopulation;
 import com.cs6400.demo.model.YearMembershipTrend;
 import com.cs6400.demo.model.ManufacturerDetail;
@@ -11,6 +12,7 @@ import com.cs6400.demo.model.MembershipTrend;
 import java.sql.SQLException;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,14 +47,20 @@ public class ReportController {
     return repo.getMfgDiscount(name);
   }
 
-  @GetMapping("/revenueYears")
+  @GetMapping(value =  "/revenueYears")
   public List<Integer> getRevenueYears() {
     return repo.getRevenueYears();
   }
 
-  @GetMapping("/revenueMonths")
+  @GetMapping(value =  "/revenueMonths")
   public List<Integer> getRevenueMonths() {
     return repo.getRevenueMonths();
+  }
+  
+  @GetMapping("/revenueByVolumeCategory")
+  public List<HighestVolumeCateogry> getHighestVolumeCategory(@RequestParam String year,
+                                                              @RequestParam String month) {
+    return repo.getHighestVolumeCategory(year, month);
   }
   
   
