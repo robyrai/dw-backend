@@ -97,7 +97,7 @@ public class ReportController {
 
   @GetMapping("/yearMembershipTrend")
   public List<YearMembershipTrend> getYearMembershipTrend(@RequestParam long year) {
-    return repo.getYearMembershipTrend(year);
+    return repo.getYearCityMembershipTrendTop(year);
   }
 
   @GetMapping("/cityMembershipTrend")

@@ -8,21 +8,25 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.support.JdbcDaoSupport;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class StatisticsRepositoryImpl implements StatisticsRepository {
-
+  // Using Jdbc template to try. But best practice is to get a connection and use Prepared 
+  // Statements
   @Autowired
   @Qualifier("ppdw-jdbc-template")
   JdbcTemplate ppJdbcTemplate;
 
   @Override
   public List<Statistics> getStatistics() throws SQLException {
-    String sql = "SELECT relname AS field, n_live_tup AS total FROM pg_stat_user_tables "
-                 + "WHERE schemaname = 'cs6400' AND relname IN ('product', 'store', "
-                 + "'membership', 'manufacturer')";
+    String sql = "SELECT 'store' AS table_name, COUNT(1) FROM Store "
+                 + "UNION "
+                 + "SELECT 'manufacturer' AS table_name, COUNT(1) FROM Manufacturer "
+                 + "UNION "
+                 + "SELECT 'product' AS table_name, COUNT(1) FROM Product "
+                 + "UNION "
+                 + "SELECT 'membership' AS table_name, COUNT(1) FROM Membership";
     List<Map<String, Object>> rows = ppJdbcTemplate.queryForList(sql);
     List<Statistics> result = new ArrayList<>();
     for (Map<String, Object> row : rows) {

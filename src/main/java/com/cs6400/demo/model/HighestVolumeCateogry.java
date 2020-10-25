@@ -1,16 +1,16 @@
 package com.cs6400.demo.model;
 
 public class HighestVolumeCateogry {
-  private String cityName;
+  private String category;
   private String stateName;
   private Long total;
 
-  public String getCityName() {
-    return cityName;
+  public String getCategory() {
+    return category;
   }
 
-  public void setCityName(String cityName) {
-    this.cityName = cityName;
+  public void setCategory(String category) {
+    this.category = category;
   }
 
   public String getStateName() {

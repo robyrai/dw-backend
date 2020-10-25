@@ -27,8 +27,6 @@ public interface ReportRepository {
 
   List<MembershipTrend> getMembershipTrend();
 
-  List<YearMembershipTrend> getYearMembershipTrend(long year);
-
   List<CityMembershipTrend> getCityMembershipTrend(String city, String state, long year);
 
   List<RevenuePopulation> getRevenueByPopulation();
@@ -40,8 +38,12 @@ public interface ReportRepository {
   List<String> getStates();
 
   List<HighestVolumeCateogry> getHighestVolumeCategory(String year, String month);
-  
+
   List<GroundhogDayReport> getGroundhogDayReport();
-  
+
+  List<YearMembershipTrend> getYearCityMembershipTrendTop(long year);
+
+  List<YearMembershipTrend> getYearCityMembershipTrendBottom(long year);
+
   List<StoreRevenueByStateByYear> getStoreRevenueByStoreByYear(String stateName);
 }

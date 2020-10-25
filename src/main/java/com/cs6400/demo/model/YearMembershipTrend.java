@@ -3,8 +3,8 @@ package com.cs6400.demo.model;
 public class YearMembershipTrend {
   private String city;
   private String state;
-  private Double signupYear;
   private Long total;
+  private boolean isMultiple;
 
   public String getCity() {
     return city;
@@ -22,19 +22,19 @@ public class YearMembershipTrend {
     this.state = state;
   }
 
-  public Double getSignupYear() {
-    return signupYear;
-  }
-
-  public void setSignupYear(Double signupYear) {
-    this.signupYear = signupYear;
-  }
-
   public Long getTotal() {
     return total;
   }
 
   public void setTotal(Long total) {
     this.total = total;
+  }
+
+  public boolean isMultiple() {
+    return isMultiple;
+  }
+
+  public void setMultiple(boolean multiple) {
+    isMultiple = multiple;
   }
 }

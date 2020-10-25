@@ -35,11 +35,15 @@ public class ReportRepositoryImpl implements ReportRepository {
   @Qualifier("ppdw-connection")
   Connection ppConnxn;
 
+  // Manufacturer's Product Report
   @Override
   public List<ManufacturerProduct> getManufacturerProduct() throws SQLException {
-    String sql = "SELECT m.name, COUNT(p.name), ROUND(avg(p.price), 2) AS average_price, MAX "
-                 + "(p.price),  MIN(p.price) FROM product p JOIN manufacturer m ON "
-                 + "p.mfg_name=m.name GROUP BY m.name ORDER BY average_price DESC LIMIT 100;";
+    String sql = "SELECT m.name, COUNT(p.name), ROUND(avg(p.price), 2) AS average_price, "
+                 + "MAX(p.price),  MIN(p.price) "
+                 + "FROM product p JOIN manufacturer m ON p.manufacturer = m.name "
+                 + "GROUP BY m.name "
+                 + "ORDER BY average_price DESC "
+                 + "LIMIT 100;";
     List<Map<String, Object>> rows = ppJdbcTemplate.queryForList(sql);
     List<ManufacturerProduct> result = new ArrayList<>();
     for (Map<String, Object> row : rows) {
@@ -54,48 +58,11 @@ public class ReportRepositoryImpl implements ReportRepository {
     return result;
   }
 
-  @Override
-  public List<CategoryReport> getCategoryReport() throws SQLException {
-    String sql = "SELECT c.name category_name, COUNT(p.productid) COUNT_product, COUNT(DISTINCT"
-                 + " p.mfg_name) unique_mfg, ROUND(avg(p.price), 2) average_price FROM "
-                 + "product p JOIN product_category_xref x ON p.productid = x.productid JOIN "
-                 + "category c ON x.category_name = c.name GROUP BY c.name ORDER BY c.name ASC";
-    List<Map<String, Object>> rows = ppJdbcTemplate.queryForList(sql);
-    List<CategoryReport> result = new ArrayList<>();
-    for (Map<String, Object> row : rows) {
-      CategoryReport cr = new CategoryReport();
-      cr.setCategoryName((String) row.get("category_name"));
-      cr.setCountProduct((Long) row.get("count_product"));
-      cr.setUniqueMfg((Long) row.get("unique_mfg"));
-      cr.setAvgPrice((BigDecimal) row.get("average_price"));
-      result.add(cr);
-    }
-    return result;
-  }
-
-  @Override
-  public List<ManufacturerDetail> getManufacturerDetail(String name) throws SQLException {
-    String sql = "SELECT p.productid, p.name product_name, string_agg(c.name, ', ') as "
-                 + "category, p.price FROM product p JOIN product_category_xref x ON "
-                 + "p.productid = x.productid JOIN category c ON c.name = x.category_name "
-                 + "JOIN manufacturer m ON m.name = p.mfg_name WHERE m.name = '" + name + "' "
-                 + "GROUP BY p.productid ORDER BY p.price DESC;";
-    List<Map<String, Object>> rows = ppJdbcTemplate.queryForList(sql);
-    List<ManufacturerDetail> result = new ArrayList<>();
-    for (Map<String, Object> row : rows) {
-      ManufacturerDetail md = new ManufacturerDetail();
-      md.setProductId((Integer) row.get("productid"));
-      md.setName((String) row.get("product_name"));
-      md.setCategory((String) row.get("category"));
-      md.setPrice((Integer) row.get("price"));
-      result.add(md);
-    }
-    return result;
-  }
-
+  // Drill-down manufacturer first part to get the max discount the manufacturer offers
   @Override
   public int getMfgDiscount(String name) {
-    String sql = "SELECT MAX(p.max_discount) FROM manufacturer m, product p where m.name=p.mfg_name AND m.name=? group by m.name;";
+    String sql = "SELECT MAX(m.MaxDiscount) FROM manufacturer m, product p "
+                 + "WHERE m.name = p.manufacturer AND m.name=?";
     int res = 0;
     ResultSet rs;
     try {
@@ -112,21 +79,102 @@ public class ReportRepositoryImpl implements ReportRepository {
     }
   }
 
+  // Drill-down manufacturer Report
+  @Override
+  public List<ManufacturerDetail> getManufacturerDetail(String name) {
+    String sql = "SELECT p.PID, p.name product_name, string_agg(c.name, ', ') as category ,p.price "
+                 + "FROM product p, category c, ProductCategory x "
+                 + "WHERE p.PID = x.PID AND c.name = x.category AND p.manufacturer = '" + name + "' "
+                 + "GROUP BY p.PID "
+                 + "ORDER BY p.price DESC;";
+    List<Map<String, Object>> rows = ppJdbcTemplate.queryForList(sql);
+    List<ManufacturerDetail> result = new ArrayList<>();
+    for (Map<String, Object> row : rows) {
+      ManufacturerDetail md = new ManufacturerDetail();
+      md.setProductId((Integer) row.get("pid"));
+      md.setName((String) row.get("product_name"));
+      md.setCategory((String) row.get("category"));
+      md.setPrice((Integer) row.get("price"));
+      result.add(md);
+    }
+    return result;
+  }
+
+  // Category Report
+  @Override
+  public List<CategoryReport> getCategoryReport() {
+    String sql = "SELECT c.name, COUNT(p.PID) product_count, COUNT(DISTINCT p.Name) "
+                 + "manufacturer_count, ROUND(avg(p.price), 2) average_price "
+                 + "FROM product p "
+                 + "JOIN ProductCategory x ON p.PID = x.PID "
+                 + "JOIN category c ON x.category = c.name "
+                 + "GROUP BY c.name "
+                 + "ORDER BY c.name ASC;";
+    List<Map<String, Object>> rows = ppJdbcTemplate.queryForList(sql);
+    List<CategoryReport> result = new ArrayList<>();
+    for (Map<String, Object> row : rows) {
+      CategoryReport cr = new CategoryReport();
+      cr.setCategoryName((String) row.get("name"));
+      cr.setCountProduct((Long) row.get("product_count"));
+      cr.setUniqueMfg((Long) row.get("manufacturer_count"));
+      cr.setAvgPrice((BigDecimal) row.get("average_price"));
+      result.add(cr);
+    }
+    return result;
+  }
+
+  // Actual vs predicted revenue for GPS units report
   @Override
   public List<GpsPrediction> getGpsPrediction() {
-    String sql = "Select * from store;";
+    String sql = "SELECT PID, name, retail_price, total_ever_sold, total_sold_at_discount, "
+                 + "total_sold_at_retail, actual_revenue, predicted_revenue, difference "
+                 + "FROM ("
+                 + "SELECT PID, Name, retail_price, total_ever_sold, total_sold_at_discount, "
+                 + "total_sold_at_retail, actual_revenue, predicted_revenue, "
+                 + "(actual_revenue - predicted_revenue) AS difference "
+                 + "FROM ("
+                 + "SELECT p.PID, p.name, p.price retail_price, "
+                 + "(SELECT SUM(SoldWithPrice.Quantity)"
+                 + "FROM SoldWithPrice "
+                 + "WHERE SoldWithPrice.PID = p.pID) AS total_ever_sold, "
+                 + "(SELECT SUM(SoldWIthPrice.Quantity)"
+                 + "FROM SoldWithPrice "
+                 + "WHERE SoldWithPrice.PID = p.PID AND SoldWithPrice.Sale = true) "
+                 + "total_sold_at_discount, "
+                 + " (SELECT SUM(SoldWIthPrice.Quantity) FROM SoldWithPrice "
+                 + "WHERE SoldWithPrice.PID = p.PID AND SoldWithPrice.Sale = false) "
+                 + "total_sold_at_retail, "
+                 + "(SELECT SUM(SoldWithPrice.Price)"
+                 + "FROM SoldWithPrice "
+                 + "WHERE SoldWithPrice.PID = p.PID "
+                 + "GROUP BY SoldWithPrice.PID) AS actual_revenue, "
+                 + "(((SELECT SUM(SoldWithPrice.Quantity) "
+                 + "FROM SoldWithPrice "
+                 + "WHERE SoldWithPrice.PID = p.pID) * 0.75) * "
+                 + "(SELECT productSub.Price "
+                 + "FROM Product AS productSub "
+                 + "WHERE productSub.PID = p.pID)) AS predicted_revenue "
+                 + "FROM product p "
+                 + "JOIN soldWithPrice d ON d.PID = p.PID "
+                 + "LEFT JOIN sale s ON d.PID = s.PID AND d.date = s.date "
+                 + "JOIN ProductCategory x ON p.PID = x.PID "
+                 + "JOIN category c ON x.category = c.name "
+                 + "WHERE c.name = 'GPS'"
+                 + "GROUP BY p.PID, p.Name, p.price) AS subQuery ) AS secondSubQuery "
+                 + "WHERE ABS(difference) > 5000 "
+                 + "ORDER BY difference DESC;";
     List<GpsPrediction> gpList = new ArrayList<>();
     try {
       PreparedStatement ps = ppConnxn.prepareCall(sql);
       ResultSet rs = ps.executeQuery();
       while (rs.next()) {
         GpsPrediction gp = new GpsPrediction();
-        gp.setProductId(rs.getInt("productId"));
+        gp.setProductId(rs.getInt("pid"));
         gp.setName(rs.getString("name"));
         gp.setRetailPrice(rs.getInt("retail_price"));
-        gp.setUnitsSold(rs.getLong("units_sold"));
-        gp.setUnitsSoldOnDiscount(rs.getLong("units_sold_on_discount"));
-        gp.setUnitsSoldAtRetailPrice(rs.getLong("units_sold_at_retail_price"));
+        gp.setUnitsSold(rs.getLong("total_ever_sold"));
+        gp.setUnitsSoldOnDiscount(rs.getLong("total_sold_at_discount"));
+        gp.setUnitsSoldAtRetailPrice(rs.getLong("total_sold_at_retail"));
         gp.setActualRevenue(rs.getLong("actual_revenue"));
         gp.setPredictedRevenue(rs.getLong("predicted_revenue"));
         gp.setDifference(rs.getLong("difference"));
@@ -139,64 +187,8 @@ public class ReportRepositoryImpl implements ReportRepository {
     }
   }
 
-  @Override
-  public List<RevenuePopulation> getRevenueByPopulation() {
-    String sql = "SELECT t.category, t.txn_year, t.revenue FROM (SELECT CASE WHEN c.population > " 
-                 + "700000 THEN 'maximus' WHEN c.population > 500000 THEN 'medium' WHEN c.population > 300000 THEN 'minimum' ELSE 'itsybitsy' END as category, CASE WHEN c.population > 700000 THEN 3 WHEN c.population > 500000 THEN 2 WHEN c.population > 300000 THEN 1 ELSE 0 END as rnk, EXTRACT(YEAR FROM d.date) AS txn_year, round(SUM(d.price)/COUNT(DISTINCT(c.name)), 2) AS revenue FROM sold d JOIN store s ON s.storeid=d.storeid JOIN city c ON c.storeid=s.storeid GROUP BY category, txn_year, rnk ORDER BY txn_year ASC, rnk ASC) as t;";
-    List<RevenuePopulation> rpList = new ArrayList<>();
-    try {
-      PreparedStatement ps = ppConnxn.prepareCall(sql);
-      ResultSet rs = ps.executeQuery();
-      while (rs.next()) {
-        RevenuePopulation rp = new RevenuePopulation();
-        rp.setPopulationCategory(rs.getString("category"));
-        rp.setTxnYear(rs.getDouble("txn_year"));
-        rp.setRevenue(rs.getLong("revenue"));
-        rpList.add(rp);
-      }
-      rs.close();
-      return rpList;
-    } catch (SQLException e) {
-      return null;
-    }
-  }
-
-  @Override
-  public List<Integer> getRevenueYears() {
-    String sql = "SELECT DISTINCT(EXTRACT(YEAR FROM date)) FROM sold;";
-    List<Integer> years = new ArrayList<>();
-    try {
-      PreparedStatement ps = ppConnxn.prepareCall(sql);
-      ResultSet rs = ps.executeQuery();
-      while (rs.next()) {
-        Integer yr = rs.getInt(1);
-        years.add(yr);
-      }
-      rs.close();
-      return years;
-    } catch (SQLException e) {
-      return null;
-    }
-  }
-
-  @Override
-  public List<Integer> getRevenueMonths() {
-    String sql = "SELECT DISTINCT(EXTRACT(MONTH FROM date)) FROM sold;";
-    List<Integer> months = new ArrayList<>();
-    try {
-      PreparedStatement ps = ppConnxn.prepareCall(sql);
-      ResultSet rs = ps.executeQuery();
-      while (rs.next()) {
-        Integer mt = rs.getInt(1);
-        months.add(mt);
-      }
-      rs.close();
-      return months;
-    } catch (SQLException e) {
-      return null;
-    }
-  }
-
+  // Store revenue by year by state report
+  // First get all states names to list in dropdown option
   @Override
   public List<String> getStates() {
     String sql = "SELECT DISTINCT(state) FROM city;";
@@ -215,87 +207,16 @@ public class ReportRepositoryImpl implements ReportRepository {
     }
   }
 
-  @Override
-  public List<HighestVolumeCateogry> getHighestVolumeCategory(String year, String month) {
-    String sql = "WITH tempTable(city_name, state_name, total)" 
-                 + "AS (SELECT ct.name, c.state, SUM(s.quantity) AS total " 
-                 + "FROM sold s JOIN product p ON p.productid=s.productid " 
-                 + "JOIN product_store_xref x ON x.productid = p.productid " 
-                 + "JOIN store st ON st.storeid = x.storeid " 
-                 + "JOIN city c on c.storeid = st.storeid " 
-                 + "JOIN product_category_xref pcx on pcx.productid = p.productid " 
-                 + "JOIN category ct ON ct.name=pcx.category_name " 
-                 + "WHERE TO_CHAR(s.date, 'MM') = ? AND TO_CHAR(s.date, 'YYYY') = ? " 
-                 + "GROUP BY ct.name, c.state) " 
-                 + "SELECT city_name, state_name, total FROM tempTable " 
-                 + "WHERE (city_name, total) IN " 
-                 + "(SELECT city_name, MAX(total) FROM tempTable GROUP BY city_name)";
-
-    List<HighestVolumeCateogry> hvList = new ArrayList<>();
-    try {
-      PreparedStatement ps = ppConnxn.prepareCall(sql);
-      ps.setString(1, month);
-      ps.setString(2, year);
-      ResultSet rs = ps.executeQuery();
-      while (rs.next()) {
-        HighestVolumeCateogry hv = new HighestVolumeCateogry();
-        hv.setCityName(rs.getString("city_name"));
-        hv.setStateName(rs.getString("state_name"));
-        hv.setTotal(rs.getLong("total"));
-        hvList.add(hv);
-      }
-      rs.close();
-      return hvList;
-    } catch (SQLException e) {
-      return null;
-    }
-  }
-
-  @Override
-  public List<GroundhogDayReport> getGroundhogDayReport() {
-    String sql = "SELECT extract(year FROM s.date) AS sale_year, SUM(s.quantity) AS annual_sale, " 
-                 + "round(cast(SUM(quantity) AS decimal(7,2))/.365, 2) AS sales_per_day, "
-                 + "SUM(case when to_char(s.date, 'MMdd')='1101' then s.quantity else 0 end) AS " 
-                 + "groundhog_day_sale "
-                 + "FROM sold s "
-                 + "JOIN product p ON s.productid=p.productid "
-                 + "JOIN product_category_xref x ON p.productid=x.productid "
-                 + "JOIN category c ON x.category_name=c.name "
-                 + "WHERE c.name='office' "
-                 + "GROUP BY sale_year "
-                 + "ORDER BY sale_year ASC;";
-
-    List<GroundhogDayReport> gdList = new ArrayList<>();
-    try {
-      PreparedStatement ps = ppConnxn.prepareCall(sql);
-      ResultSet rs = ps.executeQuery();
-      while (rs.next()) {
-        GroundhogDayReport gd = new GroundhogDayReport();
-        gd.setYear(rs.getLong("sale_year"));
-        gd.setAnnualSale(rs.getLong("annual_sale"));
-        gd.setDailyAverage(rs.getLong("sales_per_day"));
-        gd.setGhdTotal(rs.getLong("groundhog_day_sale"));
-        gdList.add(gd);
-      }
-      rs.close();
-      return gdList;
-    } catch (SQLException e) {
-      return null;
-    }
-  }
-
+  // Store revenue by year by state report
   @Override
   public List<StoreRevenueByStateByYear> getStoreRevenueByStoreByYear(String stateName) {
-    String sql = "SELECT s.storeid, s.address AS store_address, c.name AS city_name, (EXTRACT" 
-                 + "(YEAR FROM d.date)) AS revenue_year, SUM(d.price) AS revenue "
+    String sql = "SELECT s.storeid, s.address store_address, s.City city_name, "
+                 + "(EXTRACT(YEAR FROM d.date)) revenue_year, SUM(d.price) revenue "
                  + "FROM store s "
-                 + "JOIN city c ON s.storeid=c.storeid "
-                 + "JOIN product_store_xref x ON s.storeid=x.storeid "
-                 + "JOIN product p ON x.productid=p.productid "
-                 + "JOIN sold d ON p.productid=d.productid "
-                 + "where c.state=? "
-                 + "GROUP BY s.storeid, s.address, c.name, revenue_year "
-                 + "ORDER BY revenue_year ASC, revenue DESC;";
+                 + "JOIN SoldWithPrice d ON s.StoreId=d.StoreId "
+                 + "WHERE s.state=? "
+                 + "GROUP BY s.storeid, s.address, s.City, revenue_year "
+                 + "ORDER BY revenue_year ASC, revenue DESC";
     List<StoreRevenueByStateByYear> srList = new ArrayList<>();
     try {
       PreparedStatement ps = ppConnxn.prepareCall(sql);
@@ -317,26 +238,174 @@ public class ReportRepositoryImpl implements ReportRepository {
     }
   }
 
+  // Ground-hog day report
+  @Override
+  public List<GroundhogDayReport> getGroundhogDayReport() {
+    String sql = "SELECT extract(year FROM s.date) year, SUM(s.quantity) total_num_sales, "
+                 + "round(cast(SUM(s.quantity) decimal(7,2))/.365, 2) sales_per_day, "
+                 + "SUM(CASE WHEN to_char(s.date, 'MMdd')='0202' THEN s.quantity ELSE 0 END) "
+                 + "groundhog_day_sale "
+                 + "FROM sold s "
+                 + "JOIN product p ON s.PID=p.PID "
+                 + "JOIN ProductCategory x ON p.PID=x.PID "
+                 + "JOIN category c ON x.category=c.name "
+                 + "WHERE c.name='Air Conditioner' "
+                 + "GROUP BY year "
+                 + "ORDER BY year ASC";
+
+    List<GroundhogDayReport> gdList = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        GroundhogDayReport gd = new GroundhogDayReport();
+        gd.setYear(rs.getLong("year"));
+        gd.setAnnualSale(rs.getLong("total_number_sales"));
+        gd.setDailyAverage(rs.getLong("sales_per_day"));
+        gd.setGhdTotal(rs.getLong("groundhog_day_sale"));
+        gdList.add(gd);
+      }
+      rs.close();
+      return gdList;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
+  // State With Highest volume for each category report
+  // First select year and month
+  @Override
+  public List<Integer> getRevenueYears() {
+    String sql = "SELECT DISTINCT(EXTRACT(YEAR FROM date)) FROM sold;";
+    List<Integer> years = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        Integer yr = rs.getInt(1);
+        years.add(yr);
+      }
+      rs.close();
+      return years;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
+  // First select year and month
+  @Override
+  public List<Integer> getRevenueMonths() {
+    String sql = "SELECT DISTINCT(EXTRACT(MONTH FROM date)) FROM sold;";
+    List<Integer> months = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        Integer mt = rs.getInt(1);
+        months.add(mt);
+      }
+      rs.close();
+      return months;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
+  // State With Highest volume for each category report
+  @Override
+  public List<HighestVolumeCateogry> getHighestVolumeCategory(String year, String month) {
+    String sql = "WITH tempTable(category, state, total) (SELECT ct.name, st.state, SUM(s.quantity) total "
+                 + "FROM sold s "
+                 + "JOIN product p ON p.PID=s.PID "
+                 + "JOIN store st ON st.storeid = s.storeid "
+                 + "JOIN ProductCategory pcx on pcx.PID = p.PID "
+                 + "JOIN category ct ON ct.name=pcx.category "
+                 + "WHERE TO_CHAR(s.date, 'MM') = ? AND TO_CHAR(s.date, 'YYYY') = ? "
+                 + "GROUP BY ct.name, st.state) "
+                 + "SELECT category, state, total FROM tempTable "
+                 + "WHERE (category, total) IN "
+                 + "(SELECT category, MAX(total) "
+                 + "FROM tempTable "
+                 + "GROUP BY category) "
+                 + "ORDER BY category ASC";
+
+    List<HighestVolumeCateogry> hvList = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ps.setString(1, month);
+      ps.setString(2, year);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        HighestVolumeCateogry hv = new HighestVolumeCateogry();
+        hv.setCategory(rs.getString("category"));
+        hv.setStateName(rs.getString("state"));
+        hv.setTotal(rs.getLong("total"));
+        hvList.add(hv);
+      }
+      rs.close();
+      return hvList;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
+  // Revenue by population report
+  @Override
+  public List<RevenuePopulation> getRevenueByPopulation() {
+    String sql = "SELECT t.category, t.year, t.revenue FROM (SELECT "
+                 + "  CASE  "
+                 + "    WHEN c.population > 9000000 THEN 'Extra Large' "
+                 + "    WHEN c.population > 6700000 THEN 'Large' "
+                 + "    WHEN c.population > 3700000 THEN 'Medium' "
+                 + "    ELSE 'Small' "
+                 + "  END as category, "
+                 + "  CASE "
+                 + "    WHEN c.population > 9000000 THEN 3 "
+                 + "  WHEN c.population > 6700000 THEN 2 "
+                 + "  WHEN c.population > 3700000 THEN 1 "
+                 + "  ELSE 0 "
+                 + "  END as rnk, "
+                 + "  EXTRACT(YEAR FROM d.date) AS year, "
+                 + "  round(SUM(d.price)/COUNT(DISTINCT(c.name)), 2) AS revenue "
+                 + "FROM soldWithPrice d "
+                 + "JOIN store s ON s.storeid=d.storeid "
+                 + "JOIN city c ON c.name=s.city "
+                 + "GROUP BY category, year, rnk "
+                 + "ORDER BY year ASC, rnk ASC) as t";
+    List<RevenuePopulation> rpList = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        RevenuePopulation rp = new RevenuePopulation();
+        rp.setPopulationCategory(rs.getString("category"));
+        rp.setTxnYear(rs.getDouble("year"));
+        rp.setRevenue(rs.getLong("revenue"));
+        rpList.add(rp);
+      }
+      rs.close();
+      return rpList;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
+  // Membership trend report part 1 - yearly report
   @Override
   public List<MembershipTrend> getMembershipTrend() {
-    String sql = "SELECT city, state, signup_year, total, CASE WHEN count > 1 THEN true ELSE "
-                 + "false END "
-                 + "AS isMultiple FROM (SELECT c.name AS city, EXTRACT(YEAR FROM m.signup_date) "
-                 + "AS signup_year,  COUNT(m.signup_date) AS total FROM membership m JOIN store s"
-                 + " ON s.storeid= m.signup_store JOIN city c ON c.storeid=s.storeid GROUP BY "
-                 + "city, signup_year ORDER BY signup_year DESC) t JOIN (select name, state, count"
-                 + "(storeid) from city group by name, state) u ON t.city=u.name;";
+    String sql = "SELECT EXTRACT(YEAR FROM m.date) AS signup_year, COUNT(m.date) AS total "
+                 + "FROM membership m "
+                 + "JOIN store s ON s.storeid= m.storeId "
+                 + "GROUP BY signup_year "
+                 + "ORDER BY signup_year DESC";
     List<MembershipTrend> mtList = new ArrayList<>();
     try {
       PreparedStatement ps = ppConnxn.prepareCall(sql);
       ResultSet rs = ps.executeQuery();
       while (rs.next()) {
         MembershipTrend mt = new MembershipTrend();
-        mt.setCity(rs.getString("city"));
-        mt.setState(rs.getString("state"));
         mt.setYear(rs.getLong("signup_year"));
         mt.setTotal(rs.getLong("total"));
-        mt.setMultiple(rs.getBoolean("isMultiple"));
         mtList.add(mt);
       }
       rs.close();
@@ -346,13 +415,20 @@ public class ReportRepositoryImpl implements ReportRepository {
     }
   }
 
+  // Membership trend report part 2 - city wise report top 25
   @Override
-  public List<YearMembershipTrend> getYearMembershipTrend(long year) {
-    String sql = "SELECT c.name AS CITY, c.state AS state, EXTRACT(YEAR FROM m.signup_date) "
-                 + "AS signup_year,  COUNT(m.signup_date) AS total FROM membership m JOIN "
-                 + "store s ON s.storeid= m.signup_store JOIN city c ON c.storeid=s.storeid "
-                 + "WHERE EXTRACT(YEAR FROM m.signup_date)=? GROUP BY city, state, "
-                 + "signup_year ORDER BY total DESC FETCH FIRST 3 ROWS ONLY";
+  public List<YearMembershipTrend> getYearCityMembershipTrendTop(long year) {
+    String sql = "SELECT t.city, t.state, t.total, CASE WHEN u.count > 1 THEN true ELSE false END"
+                 + " AS isMultiple "
+                 + "FROM (SELECT s.city, s.state, COUNT(m.date) AS total "
+                 + "  FROM membership m "
+                 + "  JOIN store s ON s.storeid=m.storeId "
+                 + "  WHERE EXTRACT(YEAR FROM m.date)=? "
+                 + "  GROUP BY city, state "
+                 + "  ORDER BY total DESC "
+                 + "  LIMIT 25) t "
+                 + "JOIN (select city, state, count(storeid) from store group by city, state) u "
+                 + "ON t.city=u.city AND t.state = u.state;";
 
     List<YearMembershipTrend> ymList = new ArrayList<>();
     try {
@@ -363,8 +439,8 @@ public class ReportRepositoryImpl implements ReportRepository {
         YearMembershipTrend ym = new YearMembershipTrend();
         ym.setCity(rs.getString("city"));
         ym.setState(rs.getString("state"));
-        ym.setSignupYear(rs.getDouble("signup_year"));
         ym.setTotal(rs.getLong("total"));
+        ym.setMultiple(rs.getBoolean("isMultiple"));
         ymList.add(ym);
       }
       rs.close();
@@ -374,9 +450,49 @@ public class ReportRepositoryImpl implements ReportRepository {
     }
   }
 
+  // Membership trend report part 2 - city wise report bottom 25
+  @Override
+  public List<YearMembershipTrend> getYearCityMembershipTrendBottom(long year) {
+    String sql = "SELECT t.city, t.state, t.total, CASE WHEN u.count > 1 THEN true ELSE false END"
+                 + " AS isMultiple "
+                 + "FROM (SELECT s.city, s.state, COUNT(m.date) AS total "
+                 + "  FROM membership m "
+                 + "  JOIN store s ON s.storeid=m.storeId "
+                 + "  WHERE EXTRACT(YEAR FROM m.date)=? "
+                 + "  GROUP BY city, state "
+                 + "  ORDER BY total ASC "
+                 + "  LIMIT 25) t "
+                 + "JOIN (select city, state, count(storeid) from store group by city, state) u "
+                 + "ON t.city=u.city AND t.state = u.state;";
+
+    List<YearMembershipTrend> ymList = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ps.setLong(1, year);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        YearMembershipTrend ym = new YearMembershipTrend();
+        ym.setCity(rs.getString("city"));
+        ym.setState(rs.getString("state"));
+        ym.setTotal(rs.getLong("total"));
+        ym.setMultiple(rs.getBoolean("isMultiple"));
+        ymList.add(ym);
+      }
+      rs.close();
+      return ymList;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
+  // Membership trend report part 3 - store wise report
   @Override
   public List<CityMembershipTrend> getCityMembershipTrend(String city, String state, long year) {
-    String sql = "SELECT c.storeid, s.address, c.name, COUNT(m.mid) AS total_membership FROM city c JOIN store s ON s.storeid=c.storeid JOIN membership m ON m.signup_store=s.storeid WHERE c.name=? AND c.state=? AND EXTRACT(YEAR FROM m.signup_date)=? GROUP BY c.storeid, s.address, c.name;\n";
+    String sql = "SELECT s.storeid, s.address, s.city, COUNT(m.membershipId) AS total_membership "
+                 + "FROM store s "
+                 + "JOIN membership m ON m.storeId=s.storeid "
+                 + "WHERE s.city=? AND s.state=? AND EXTRACT(YEAR FROM m.date)=? "
+                 + "GROUP BY s.storeid, s.address, s.city;";
 
     List<CityMembershipTrend> cmList = new ArrayList<>();
     try {
@@ -389,7 +505,7 @@ public class ReportRepositoryImpl implements ReportRepository {
         CityMembershipTrend cm = new CityMembershipTrend();
         cm.setStoreId(rs.getInt("storeid"));
         cm.setAddress(rs.getString("address"));
-        cm.setCity(rs.getString("name"));
+        cm.setCity(rs.getString("city"));
         cm.setCount(rs.getLong("total_membership"));
         cmList.add(cm);
       }
