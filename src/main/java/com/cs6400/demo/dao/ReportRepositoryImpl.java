@@ -2,6 +2,7 @@ package com.cs6400.demo.dao;
 
 import com.cs6400.demo.model.CategoryReport;
 import com.cs6400.demo.model.CityMembershipTrend;
+import com.cs6400.demo.model.GpsPrediction;
 import com.cs6400.demo.model.GroundhogDayReport;
 import com.cs6400.demo.model.HighestVolumeCateogry;
 import com.cs6400.demo.model.ManufacturerDetail;
@@ -110,7 +111,34 @@ public class ReportRepositoryImpl implements ReportRepository {
       return 0;
     }
   }
-  
+
+  @Override
+  public List<GpsPrediction> getGpsPrediction() {
+    String sql = "Select * from store;";
+    List<GpsPrediction> gpList = new ArrayList<>();
+    try {
+      PreparedStatement ps = ppConnxn.prepareCall(sql);
+      ResultSet rs = ps.executeQuery();
+      while (rs.next()) {
+        GpsPrediction gp = new GpsPrediction();
+        gp.setProductId(rs.getInt("productId"));
+        gp.setName(rs.getString("name"));
+        gp.setRetailPrice(rs.getInt("retail_price"));
+        gp.setUnitsSold(rs.getLong("units_sold"));
+        gp.setUnitsSoldOnDiscount(rs.getLong("units_sold_on_discount"));
+        gp.setUnitsSoldAtRetailPrice(rs.getLong("units_sold_at_retail_price"));
+        gp.setActualRevenue(rs.getLong("actual_revenue"));
+        gp.setPredictedRevenue(rs.getLong("predicted_revenue"));
+        gp.setDifference(rs.getLong("difference"));
+        gpList.add(gp);
+      }
+      rs.close();
+      return gpList;
+    } catch (SQLException e) {
+      return null;
+    }
+  }
+
   @Override
   public List<RevenuePopulation> getRevenueByPopulation() {
     String sql = "SELECT t.category, t.txn_year, t.revenue FROM (SELECT CASE WHEN c.population > " 

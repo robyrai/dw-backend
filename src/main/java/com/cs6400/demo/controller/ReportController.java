@@ -3,6 +3,7 @@ package com.cs6400.demo.controller;
 import com.cs6400.demo.dao.ReportRepository;
 import com.cs6400.demo.model.CategoryReport;
 import com.cs6400.demo.model.CityMembershipTrend;
+import com.cs6400.demo.model.GpsPrediction;
 import com.cs6400.demo.model.GroundhogDayReport;
 import com.cs6400.demo.model.HighestVolumeCateogry;
 import com.cs6400.demo.model.RevenuePopulation;
@@ -14,7 +15,6 @@ import com.cs6400.demo.model.MembershipTrend;
 import java.sql.SQLException;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,6 +42,11 @@ public class ReportController {
   @GetMapping("/manufacturerDetail/{name}")
   public List<ManufacturerDetail> getManufacturerDetail(@PathVariable String name) throws SQLException {
     return repo.getManufacturerDetail(name);
+  }
+
+  @GetMapping("/gpsPrediction")
+  public List<GpsPrediction> getGpsPrediction() {
+    return null;
   }
 
   @GetMapping("/mfgMaxDiscount/{name}")
